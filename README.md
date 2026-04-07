@@ -1,3 +1,7 @@
+# Info about this fork
+
+See [README.imgui_bundle.md](README.imgui_bundle.md)
+
 # ![logo](readme/tex_logo.svg)
 
 It is a dynamic, cross-platform, and embeddable LaTeX rendering library. Its main purpose is to display mathematical formulas written in LaTeX. It can be embedded in applications on various platforms (Android, iOS, Windows, Linux GTK, Qt...). The following pictures demonstrate the application run in Ubuntu (using GTK) and Windows.
