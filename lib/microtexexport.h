@@ -7,7 +7,17 @@
 
 // msvc
 #ifdef _MSC_VER
-#   if defined(MICROTEX_LIBRARY)
+//[ADAPT_IMGUI_BUNDLE]
+//  Add a third branch for static-library builds. Without this, MSVC
+//  consumers of microtex headers see __declspec(dllimport) and emit
+//  __imp_* references that cannot be resolved against the static
+//  microtex.lib (which only exports plain symbols). Defining
+//  MICROTEX_STATIC tells the headers to expand MICROTEX_EXPORT to
+//  nothing, so consumers reference the plain symbols directly.
+#   if defined(MICROTEX_STATIC)
+#       define MICROTEX_EXPORT
+#   elif defined(MICROTEX_LIBRARY)
+//[/ADAPT_IMGUI_BUNDLE]
 #       define MICROTEX_EXPORT __declspec(dllexport)
 #   else
 #       define MICROTEX_EXPORT __declspec(dllimport)
