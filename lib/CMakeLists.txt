@@ -1,4 +1,22 @@
-if (DEFINED _BUILD_STATIC AND _BUILD_STATIC)
+#[[ [ADAPT_IMGUI_BUNDLE]
+    Lift the previously undocumented `_BUILD_STATIC` /
+    `_HAVE_AUTO_FONT_FIND` / `GLYPH_RENDER_TYPE` cache variables to proper
+    MICROTEX_* options with documented defaults that match the original
+    upstream behavior. This makes the build configuration discoverable
+    via `cmake -L` and avoids the `set(... CACHE BOOL "" FORCE)` smell
+    on the consumer side.
+
+    `_DISABLE_ALIAS` is dropped entirely: VERSION / SOVERSION are no-ops
+    on static libraries anyway (they only produce the `libfoo.so.1`
+    symlinks for shared libs), so the combined condition
+    `if (NOT MICROTEX_BUILD_STATIC)` is already the complete and correct
+    gate. The original upstream condition
+    `NOT DEFINED _DISABLE_ALIAS AND NOT _DISABLE_ALIAS` was buggy anyway
+    — it only fired when the variable was completely undefined.
+]]
+option(MICROTEX_BUILD_STATIC "Build microtex as a static library (default: SHARED)" OFF)
+
+if (MICROTEX_BUILD_STATIC)
     add_library(microtex STATIC "")
 else ()
     add_library(microtex SHARED "")
@@ -7,7 +25,18 @@ endif ()
 if (MSVC)
     add_compile_options("/utf-8")
     target_compile_features(microtex PUBLIC cxx_std_17)
-    target_compile_definitions(microtex PRIVATE -DMICROTEX_LIBRARY)
+    if (MICROTEX_BUILD_STATIC)
+        # [ADAPT_IMGUI_BUNDLE]
+        # For static builds, expose MICROTEX_STATIC to BOTH the microtex
+        # target (via PRIVATE/PUBLIC) and any consumer linking against it
+        # (via INTERFACE/PUBLIC). This makes microtexexport.h expand
+        # MICROTEX_EXPORT to nothing on both sides, so the static lib has
+        # plain symbols and consumers reference them directly (no
+        # __imp_* DLL import stubs).
+        target_compile_definitions(microtex PUBLIC -DMICROTEX_STATIC)
+    else ()
+        target_compile_definitions(microtex PRIVATE -DMICROTEX_LIBRARY)
+    endif ()
     target_compile_definitions(microtex PUBLIC -D_HAS_STD_BYTE=1)
 else ()
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fexceptions")
@@ -18,7 +47,7 @@ set_target_properties(
     CXX_VISIBILITY_PRESET hidden
 )
 
-if (NOT DEFINED _DISABLE_ALIAS AND NOT _DISABLE_ALIAS)
+if (NOT MICROTEX_BUILD_STATIC)
     set_target_properties(
         microtex PROPERTIES
         VERSION ${PROJECT_VERSION}
@@ -137,12 +166,17 @@ if (GRAPHICS_DEBUG)
     target_compile_definitions(microtex PRIVATE -DGRAPHICS_DEBUG)
 endif ()
 
-if (NOT DEFINED _HAVE_AUTO_FONT_FIND)
-    set(_HAVE_AUTO_FONT_FIND ON)
-endif ()
-# compile option: HAVE_AUTO_FONT_FIND if enable auto font find
-# this option is exported to users, will write into file 'microtexconfig.h'
-option(HAVE_AUTO_FONT_FIND "If enable auto font find" ${_HAVE_AUTO_FONT_FIND_})
+# [ADAPT_IMGUI_BUNDLE]
+# Renamed from `_HAVE_AUTO_FONT_FIND` to a proper option, and fixed the
+# typo on the variable expansion (was `${_HAVE_AUTO_FONT_FIND_}` with a
+# trailing underscore, which silently expanded to empty).
+# When OFF, microtex skips the std::filesystem / boost::filesystem
+# dependency check, useful for consumers that supply font paths
+# explicitly (e.g. ImGui Bundle's imgui_microtex wrapper).
+# This option is exported to users via 'microtexconfig.h'.
+option(MICROTEX_HAVE_AUTO_FONT_FIND "Enable auto font find via std::filesystem (default ON)" ON)
+# Keep upstream macro name for consumption inside the lib + the generated config header.
+set(HAVE_AUTO_FONT_FIND ${MICROTEX_HAVE_AUTO_FONT_FIND})
 
 macro(CHECK_FS LIB_NAME)
     if (EXISTS "${CMAKE_SOURCE_DIR}/test/has_filesystem.cpp")
@@ -192,17 +226,16 @@ if (HAVE_AUTO_FONT_FIND)
     endif ()
 endif ()
 
-if (NOT DEFINED _GLYPH_RENDER_TYPE)
-    set(_GLYPH_RENDER_TYPE 0)
-endif ()
-if (DEFINED GLYPH_RENDER_TYPE)
-    set(_GLYPH_RENDER_TYPE ${GLYPH_RENDER_TYPE})
-endif ()
-# compile option: GLYPH_RENDER_TYPE the glyph render type
-# 0: use path and typeface both
-# 1: use path only
-# 2: use typeface only
-target_compile_definitions(microtex PRIVATE -DGLYPH_RENDER_TYPE=${_GLYPH_RENDER_TYPE})
+# [ADAPT_IMGUI_BUNDLE]
+# Renamed from `_GLYPH_RENDER_TYPE` / `GLYPH_RENDER_TYPE` to a proper
+# documented cache variable. Values:
+#   0: use path AND typeface (default, full feature set)
+#   1: use path only
+#   2: use typeface only (smallest, no vector path data needed)
+set(MICROTEX_GLYPH_RENDER_TYPE 0 CACHE STRING
+    "MicroTeX glyph render type: 0=path+typeface, 1=path only, 2=typeface only")
+set_property(CACHE MICROTEX_GLYPH_RENDER_TYPE PROPERTY STRINGS 0 1 2)
+target_compile_definitions(microtex PRIVATE -DGLYPH_RENDER_TYPE=${MICROTEX_GLYPH_RENDER_TYPE})
 
 configure_file(microtexconfig.h.in microtexconfig.h @ONLY)
 target_include_directories(microtex PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>)
