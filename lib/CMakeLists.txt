@@ -1,4 +1,6 @@
-if (DEFINED _BUILD_STATIC AND _BUILD_STATIC)
+option(MICROTEX_BUILD_STATIC "Build microtex as a static library (default: SHARED)" OFF)
+
+if (MICROTEX_BUILD_STATIC)
     add_library(microtex STATIC "")
 else ()
     add_library(microtex SHARED "")
@@ -7,7 +9,12 @@ endif ()
 if (MSVC)
     add_compile_options("/utf-8")
     target_compile_features(microtex PUBLIC cxx_std_17)
-    target_compile_definitions(microtex PRIVATE -DMICROTEX_LIBRARY)
+    if (MICROTEX_BUILD_STATIC)
+        # the library and its consumers must not see dllimport (see microtexexport.h)
+        target_compile_definitions(microtex PUBLIC -DMICROTEX_STATIC)
+    else ()
+        target_compile_definitions(microtex PRIVATE -DMICROTEX_LIBRARY)
+    endif ()
     target_compile_definitions(microtex PUBLIC -D_HAS_STD_BYTE=1)
 else ()
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fexceptions")
@@ -18,7 +25,7 @@ set_target_properties(
     CXX_VISIBILITY_PRESET hidden
 )
 
-if (NOT DEFINED _DISABLE_ALIAS AND NOT _DISABLE_ALIAS)
+if (NOT MICROTEX_BUILD_STATIC)
     set_target_properties(
         microtex PROPERTIES
         VERSION ${PROJECT_VERSION}
@@ -137,12 +144,10 @@ if (GRAPHICS_DEBUG)
     target_compile_definitions(microtex PRIVATE -DGRAPHICS_DEBUG)
 endif ()
 
-if (NOT DEFINED _HAVE_AUTO_FONT_FIND)
-    set(_HAVE_AUTO_FONT_FIND ON)
-endif ()
-# compile option: HAVE_AUTO_FONT_FIND if enable auto font find
-# this option is exported to users, will write into file 'microtexconfig.h'
-option(HAVE_AUTO_FONT_FIND "If enable auto font find" ${_HAVE_AUTO_FONT_FIND_})
+# OFF skips the std::filesystem dependency (font paths are then given explicitly)
+option(MICROTEX_HAVE_AUTO_FONT_FIND "Enable auto font find via std::filesystem (default ON)" ON)
+# the lib and the generated microtexconfig.h use HAVE_AUTO_FONT_FIND
+set(HAVE_AUTO_FONT_FIND ${MICROTEX_HAVE_AUTO_FONT_FIND})
 
 macro(CHECK_FS LIB_NAME)
     if (EXISTS "${CMAKE_SOURCE_DIR}/test/has_filesystem.cpp")
@@ -192,17 +197,11 @@ if (HAVE_AUTO_FONT_FIND)
     endif ()
 endif ()
 
-if (NOT DEFINED _GLYPH_RENDER_TYPE)
-    set(_GLYPH_RENDER_TYPE 0)
-endif ()
-if (DEFINED GLYPH_RENDER_TYPE)
-    set(_GLYPH_RENDER_TYPE ${GLYPH_RENDER_TYPE})
-endif ()
-# compile option: GLYPH_RENDER_TYPE the glyph render type
-# 0: use path and typeface both
-# 1: use path only
-# 2: use typeface only
-target_compile_definitions(microtex PRIVATE -DGLYPH_RENDER_TYPE=${_GLYPH_RENDER_TYPE})
+# glyph render type: 0: path and typeface, 1: path only, 2: typeface only
+set(MICROTEX_GLYPH_RENDER_TYPE 0 CACHE STRING
+    "MicroTeX glyph render type: 0=path+typeface, 1=path only, 2=typeface only")
+set_property(CACHE MICROTEX_GLYPH_RENDER_TYPE PROPERTY STRINGS 0 1 2)
+target_compile_definitions(microtex PRIVATE -DGLYPH_RENDER_TYPE=${MICROTEX_GLYPH_RENDER_TYPE})
 
 configure_file(microtexconfig.h.in microtexconfig.h @ONLY)
 target_include_directories(microtex PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>)
