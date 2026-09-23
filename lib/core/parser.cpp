@@ -369,28 +369,27 @@ void Parser::getOptsArgs(int argc, int opts, Args& args) {
   args.resize(argc + 10 + 1 + 1);
 
   auto getOpts = [&]() {
-    int j = argc + 1;
-    try {
-      for (; j < argc + 11; j++) {
-        skipWhiteSpace();
-        args[j] = getGroup(L_BRACK, R_BRACK);
+    // Read the [options] that are present, without an exception as the end signal:
+    // a throw on the normal path aborts on toolchains without exception catching (e.g. Emscripten)
+    for (int j = argc + 1; j < argc + 11; j++) {
+      skipWhiteSpace();
+      if (_pos >= _len || _latex[_pos] != L_BRACK) {
+        args[j] = "";
+        break;
       }
-    } catch (ex_parse& e) {
-      args[j] = "";
+      args[j] = getGroup(L_BRACK, R_BRACK);
     }
   };
 
   auto getArg = [&](int i) {  // NOLINT(misc-no-recursion)
     skipWhiteSpace();
-    try {
+    if (_pos < _len && _latex[_pos] == L_GROUP) {
       args[i] = getGroup(L_GROUP, R_GROUP);
-    } catch (ex_parse& e) {
-      if (_latex[_pos] != '\\') {
-        args[i] = toString(_latex[_pos]);
-        _pos++;
-      } else {
-        args[i] = getCmdWithArgs(getCmd());
-      }
+    } else if (_latex[_pos] != '\\') {
+      args[i] = toString(_latex[_pos]);
+      _pos++;
+    } else {
+      args[i] = getCmdWithArgs(getCmd());
     }
   };
 
