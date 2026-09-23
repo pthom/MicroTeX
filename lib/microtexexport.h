@@ -7,7 +7,9 @@
 
 // msvc
 #ifdef _MSC_VER
-#   if defined(MICROTEX_LIBRARY)
+#   if defined(MICROTEX_STATIC)   // static library: no import/export attribute
+#       define MICROTEX_EXPORT
+#   elif defined(MICROTEX_LIBRARY)
 #       define MICROTEX_EXPORT __declspec(dllexport)
 #   else
 #       define MICROTEX_EXPORT __declspec(dllimport)
