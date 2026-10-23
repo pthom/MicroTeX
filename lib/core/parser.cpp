@@ -42,6 +42,7 @@ void Parser::init(bool isPartial, const string& latex, Formula* formula, bool fi
   _pos = _spos = _len = 0;
   _group = 0;
   _atIsLetter = 0;
+  _expansions = 0;
   _insertion = _arrayMode = _isMathMode = false;
   _isPartial = true;
 
@@ -597,6 +598,13 @@ Dimen Parser::getDimen() {
   return Units::getDimen(_latex.substr(start, end - start - 1));
 }
 
+// \newcommand{\a}{\a} expands forever, and {\a\a} grows the formula until the memory runs out: a formula
+// gets a bounded number of expansions, and a bounded length, then it is an error (shown as its source)
+void Parser::countExpansion() {
+  if (++_expansions > 10000) throw ex_parse("too many macro expansions (a macro that expands to itself?)");
+  if (_latex.length() > 1000000) throw ex_parse("the formula grew too long while its macros expanded");
+}
+
 void Parser::preprocess(string& cmd, Args& args, int& pos) {
   if (cmd == "newcommand" || cmd == "renewcommand") {
     preprocessNewCmd(cmd, args, pos);
@@ -624,6 +632,7 @@ void Parser::preprocessNewCmd(string& cmd, Args& args, int& pos) {
 }
 
 void Parser::inflateNewCmd(string& cmd, Args& args, int& pos) {
+  countExpansion();
   // The macro must exists
   auto mac = MacroInfo::get(cmd);
   getOptsArgs(mac->argc, mac->opt, args);
@@ -641,6 +650,7 @@ void Parser::inflateNewCmd(string& cmd, Args& args, int& pos) {
 }
 
 void Parser::inflateEnv(string& cmd, Args& args, int& pos) {
+  countExpansion();
   getOptsArgs(1, 0, args);
   string env = args[1] + "@env";
   auto mac = MacroInfo::get(env);

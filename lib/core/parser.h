@@ -29,6 +29,7 @@ private:
   bool _arrayMode;
   bool _isMathMode;
   bool _isPartial;
+  int _expansions;  // of macros and environments, since init(): a bound, since a macro can expand to itself
 
   /** Preprocess parse string */
   void preprocess();
@@ -58,6 +59,8 @@ private:
   void preprocess(std::string& cmd, Args& args, int& pos);
 
   void preprocessNewCmd(std::string& cmd, Args& args, int& pos);
+
+  void countExpansion();
 
   void inflateNewCmd(std::string& cmd, Args& args, int& pos);
 
