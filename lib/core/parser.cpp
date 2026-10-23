@@ -386,6 +386,8 @@ void Parser::getOptsArgs(int argc, int opts, Args& args) {
     skipWhiteSpace();
     if (_pos < _len && _latex[_pos] == L_GROUP) {
       args[i] = getGroup(L_GROUP, R_GROUP);
+    } else if (_pos >= _len) {  // a cut-off macro (\frac at the end): the argument is empty, not the bytes past the end
+      args[i] = "";
     } else if (_latex[_pos] != '\\') {
       args[i] = toString(_latex[_pos]);
       _pos++;
