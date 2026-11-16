@@ -37,12 +37,13 @@ static constexpr char PRIME = '\'';
 static constexpr char BACKPRIME = '`';
 
 // The limits of one formula. A macro can expand to itself (\newcommand{\a}{\a}) or grow the
-// formula ({\a\a}), and each level of nesting takes stack (272 to 666 bytes in Release, for braces,
-// scripts and \frac). They are counted per thread: the parsers of a formula's parts (a group, a
-// macro's argument, a nested formula) share them.
+// formula ({\a\a}), and each level of nesting takes stack: about 500 bytes in wasm, in Release
+// (\dfrac, the costliest measured). The deepest formula allowed, drawn in a markdown document,
+// needs about 36 KB of wasm's default stack, 64 KB (Emscripten). The limits are counted per thread:
+// the parsers of a formula's parts (a group, a macro's argument, a nested formula) share them.
 static constexpr int MAX_EXPANSIONS = 10000;
 static constexpr size_t MAX_LENGTH = 1000000;
-static constexpr int MAX_DEPTH = 100;
+static constexpr int MAX_DEPTH = 50;
 thread_local int t_depth = 0;       // the parse() calls running in this thread
 thread_local int t_expansions = 0;  // of macros and environments, in the formula being parsed
 
