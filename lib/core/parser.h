@@ -29,7 +29,6 @@ private:
   bool _arrayMode;
   bool _isMathMode;
   bool _isPartial;
-  int _expansions;  // of macros and environments, since init(): a bound, since a macro can expand to itself
 
   /** Preprocess parse string */
   void preprocess();

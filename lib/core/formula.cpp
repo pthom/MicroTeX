@@ -4,6 +4,7 @@
 #include "atom/atom_char.h"
 #include "atom/atom_fence.h"
 #include "atom/atom_vrow.h"
+#include "utils/exceptions.h"
 #include "utils/string_utils.h"
 #include "utils/utf.h"
 
@@ -19,6 +20,8 @@ Formula::Formula(const Parser& tp, const string& latex, bool preprocess, bool is
   if (tp.isPartial()) {
     try {
       _parser.parse();
+    } catch (ex_too_complex&) {
+      throw;  // the parser's limits hold in partial mode too
     } catch (exception& e) {
       if (_root == nullptr) _root = sptrOf<EmptyAtom>();
     }

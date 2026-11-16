@@ -36,13 +36,35 @@ static constexpr char SUPER_SCRIPT = '^';
 static constexpr char PRIME = '\'';
 static constexpr char BACKPRIME = '`';
 
+// The limits of one formula. A macro can expand to itself (\newcommand{\a}{\a}) or grow the
+// formula ({\a\a}), and each level of nesting takes stack (272 to 666 bytes in Release, for braces,
+// scripts and \frac). They are counted per thread: the parsers of a formula's parts (a group, a
+// macro's argument, a nested formula) share them.
+static constexpr int MAX_EXPANSIONS = 10000;
+static constexpr size_t MAX_LENGTH = 1000000;
+static constexpr int MAX_DEPTH = 100;
+thread_local int t_depth = 0;       // the parse() calls running in this thread
+thread_local int t_expansions = 0;  // of macros and environments, in the formula being parsed
+
+// One parse() level. The outermost one starts the count of expansions.
+struct DepthGuard {
+  DepthGuard() {
+    if (t_depth == 0) t_expansions = 0;
+    if (t_depth >= MAX_DEPTH) throw ex_too_complex("the formula is nested too deeply");
+    ++t_depth;
+  }
+  ~DepthGuard() { --t_depth; }
+  DepthGuard(const DepthGuard&) = delete;
+  DepthGuard& operator=(const DepthGuard&) = delete;
+};
+
 }  // namespace
 
 void Parser::init(bool isPartial, const string& latex, Formula* formula, bool firstPass) {
   _pos = _spos = _len = 0;
   _group = 0;
   _atIsLetter = 0;
-  _expansions = 0;
+  if (t_depth == 0) t_expansions = 0;  // a new formula: its preprocess counts from 0
   _insertion = _arrayMode = _isMathMode = false;
   _isPartial = true;
 
@@ -471,6 +493,7 @@ sptr<Atom> Parser::processCmd(const string& cmd, MacroInfo* mac) {
   args[0] = cmd;
 
   if (NewCommandMacro::isMacro(cmd)) {
+    countExpansion();  // every expansion counts, at parse time too
     // The last value in "args" is the replacement string
     auto ret = mac->invoke(*this, args);
     insert(_spos, _pos, args.back());
@@ -600,11 +623,12 @@ Dimen Parser::getDimen() {
   return Units::getDimen(_latex.substr(start, end - start - 1));
 }
 
-// \newcommand{\a}{\a} expands forever, and {\a\a} grows the formula until the memory runs out: a formula
-// gets a bounded number of expansions, and a bounded length, then it is an error (shown as its source)
+// A formula gets a bounded number of expansions, and a bounded length (see MAX_EXPANSIONS)
 void Parser::countExpansion() {
-  if (++_expansions > 10000) throw ex_parse("too many macro expansions (a macro that expands to itself?)");
-  if (_latex.length() > 1000000) throw ex_parse("the formula grew too long while its macros expanded");
+  if (++t_expansions > MAX_EXPANSIONS)
+    throw ex_too_complex("too many macro expansions (a macro that expands to itself?)");
+  if (_latex.length() > MAX_LENGTH)
+    throw ex_too_complex("the formula grew too long while its macros expanded");
 }
 
 void Parser::preprocess(string& cmd, Args& args, int& pos) {
@@ -711,6 +735,7 @@ void Parser::preprocess() {
 }
 
 void Parser::parse() {
+  const DepthGuard depth;
   if (_len == 0) {
     if (_formula->_root == nullptr && !_arrayMode) _formula->add(sptrOf<EmptyAtom>());
     return;

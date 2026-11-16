@@ -29,6 +29,12 @@ public:
   explicit ex_parse(const std::string& msg) : ex_tex(msg) {}
 };
 
+/** A formula past the parser's limits (expansions, length, nesting), even in partial mode */
+class ex_too_complex : public ex_tex {
+public:
+  explicit ex_too_complex(const std::string& msg) : ex_tex(msg) {}
+};
+
 /** Error occurred while conditions not satisfied */
 class ex_invalid_state : public ex_tex {
 public:
